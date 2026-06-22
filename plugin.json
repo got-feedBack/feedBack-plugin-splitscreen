@@ -3,7 +3,13 @@
   "name": "Split Screen",
   "version": "1.10.6",
   "private": false,
-  "settings": { "html": "settings.html" },
+  "settings": {
+    "html": "settings.html",
+    "category": "graphics"
+  },
   "script": "screen.js",
-  "tour": "tour.json"
+  "tour": "tour.json",
+  "category": "creation",
+  "description": "View two arrangements side by side.",
+  "icon": "assets/thumb.svg"
 }
