@@ -87,7 +87,7 @@
         return -1;  // all keys in use
     }
     const _ssAudio = () =>
-        (typeof window !== 'undefined' && window.slopsmithDesktop && window.slopsmithDesktop.audio) || null;
+        (typeof window !== 'undefined' && window.feedBackDesktop && window.feedBackDesktop.audio) || null;
 
     // Suppress / restore the note_detect default singleton (so it doesn't render a
     // duplicate HUD over panel 1 in split mode). Prefer the plugin's own setter so the
