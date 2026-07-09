@@ -370,6 +370,7 @@ try {
                 popupId:       params.get('popupId') || '',
                 filename:      params.get('filename') || '',
                 arrangement:   parseInt(params.get('arrangement'), 10) || 0,
+                name:          params.get('name') || '',
                 mode:          params.get('mode') || '2d',
                 inverted:      params.get('inverted') === '1',
                 lefty:         params.get('lefty') === '1',
@@ -448,7 +449,30 @@ try {
         offFocusChange(fn) {
             focusListeners.delete(fn);
         },
+
+        // Panel enumeration for cross-plugin consumers (e.g. Camera Director's
+        // panel selector). `name` is user-editable via the per-panel bar and
+        // persists; changes fire `splitscreen:panels-changed` on window.feedBack.
+        getPanels() {
+            if (!active) return [];
+            return panels.map((p, i) => ({
+                index: i, name: p.name || ('P' + (i + 1)),
+                canvas: p.canvas, focused: i === focusedPanelIdx, poppedOut: false,
+            }));
+        },
+        panelName(i) { return (panels[i] && panels[i].name) || (i != null ? ('P' + (i + 1)) : ''); },
+        setPanelName(i, name) {
+            if (!panels[i]) return;
+            const nm = String(name || '').trim().slice(0, 40) || ('P' + (i + 1));
+            panels[i].name = nm;
+            if (panels[i].nameInput) panels[i].nameInput.value = nm;
+            savePanelPrefs(); _emitPanelsChanged();
+        },
     };
+
+    // Alias under the canonical name (slopsmith → feedBack rename in flight).
+    // Consumers should read `window.feedBackSplitscreen || window.slopsmithSplitscreen`.
+    window.feedBackSplitscreen = window.slopsmithSplitscreen;
 
     // 3D Highway palette IDs. Mirrors the PALETTES registry in the 3dhighway
     // plugin's screen.js — kept as a plain list here to avoid a runtime
@@ -542,10 +566,29 @@ try {
             detectVerifierOffsetMs: p.detectVerifierOffsetMs || 0,
             barHidden: p.bar.style.display === 'none',
             mastery: p.hw.getMastery(),
+            name: p.name || '',
         };
     }
     function savePanelPrefs() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(panels.map(panelToPrefs)));
+    }
+
+    // Notify cross-plugin consumers (e.g. Camera Director's panel selector) that
+    // the panel set or a panel name changed, via the window.feedBack event bus.
+    function _emitPanelsChanged() {
+        try { if (window.feedBack && typeof window.feedBack.emit === 'function') window.feedBack.emit('splitscreen:panels-changed'); } catch (_) { /* ignore */ }
+    }
+    // Commit an edited panel name (from the bar input): sanitize, store on the
+    // panel, persist, and notify. Empty falls back to the positional default.
+    function _commitPanelName(panelDiv, raw) {
+        const i = panels.findIndex((p) => p.panelDiv === panelDiv);
+        if (i === -1) return;
+        const name = String(raw || '').trim().slice(0, 40) || `P${i + 1}`;
+        if (panels[i].name === name) return;
+        panels[i].name = name;
+        if (panels[i].nameInput && panels[i].nameInput.value !== name) panels[i].nameInput.value = name;
+        savePanelPrefs();
+        _emitPanelsChanged();
     }
 
     function loadPanelPrefs() {
@@ -902,11 +945,26 @@ try {
             // — e.g. a stale full-screen viz overlay — can bleed through the bar.
             'background:#08080e;z-index:7;';
 
-        // Panel label
-        const label = document.createElement('span');
-        label.style.cssText = 'font-size:11px;color:#888;font-weight:bold;min-width:16px;';
-        label.textContent = `P${index + 1}`;
-        bar.appendChild(label);
+        // Panel name — an editable label at the panel's TOP-RIGHT (not in the
+        // bottom bar: the main player's auto-hiding transport + left icon rail
+        // overlap the panel's bottom, blocking the leftmost panels' bar). Doubles
+        // as the user-facing handle other plugins (e.g. Camera Director) show to
+        // target this panel. Persists in panel prefs; changes emit
+        // `splitscreen:panels-changed` on the window.feedBack bus.
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = `P${index + 1}`;
+        nameInput.spellcheck = false;
+        nameInput.title = 'Rename this panel';
+        nameInput.style.cssText =
+            'position:absolute;top:6px;right:6px;z-index:8;width:96px;' +
+            'font-size:11px;color:#cbd5e1;font-weight:bold;text-align:right;' +
+            'background:rgba(8,8,16,0.5);border:1px solid transparent;border-radius:4px;' +
+            'padding:2px 6px;outline:none;';
+        nameInput.addEventListener('focus', () => { nameInput.style.borderColor = '#4080e0'; nameInput.style.background = 'rgba(8,8,16,0.95)'; nameInput.select(); });
+        nameInput.addEventListener('blur', () => { nameInput.style.borderColor = 'transparent'; nameInput.style.background = 'rgba(8,8,16,0.5)'; _commitPanelName(panelDiv, nameInput.value); });
+        nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur(); e.stopPropagation(); });
+        panelDiv.appendChild(nameInput);
 
         // Arrangement selector
         const select = document.createElement('select');
@@ -1096,7 +1154,7 @@ try {
         container.appendChild(panelDiv);
 
         return {
-            panelDiv, canvas, bar, barToggleBtn, select, arrName,
+            panelDiv, canvas, bar, barToggleBtn, select, arrName, nameInput,
             invertBtn, updateInvertStyle,
             leftyBtn, updateLeftyStyle,
             lyricsBtn, updateLyricsStyle,
@@ -2381,6 +2439,11 @@ try {
         sp.set('popupId', popupId);
         sp.set('filename', currentFilename);
         sp.set('arrangement', String(cfg.arrangement));
+        // Panel slot index (0..3) at pop-out time, so a follower window can
+        // resolve which panel it is — e.g. Camera Director applies that panel's
+        // camera in the popup. Purely additive; ignored by consumers that don't read it.
+        sp.set('panelIndex', String(idx));
+        sp.set('name', panel.name || ('P' + (idx + 1)));
         sp.set('mode', cfg.mode);
         sp.set('inverted', String(cfg.inverted));
         sp.set('lefty', String(cfg.lefty || 0));
@@ -2629,7 +2692,11 @@ try {
             initPanel(panel, arrDefaults[i], panelPrefs);
             panel.barToggleBtn.onclick = () => togglePanelBar(panel);
             if (panelPrefs?.barHidden) togglePanelBar(panel);
+            // Restore the panel's saved name (falls back to the positional default).
+            panel.name = (panelPrefs && panelPrefs.name) || `P${i + 1}`;
+            if (panel.nameInput) panel.nameInput.value = panel.name;
         }
+        _emitPanelsChanged();
 
         // Hide default highway canvas, ensure controls stay on top and at bottom.
         // Core detects the hide via canvas.offsetParent === null (slopsmith#246):
@@ -3740,6 +3807,12 @@ try {
             // this in main; follower-mode panels need the same hookup or
             // the per-panel ▾ Bar button is dead.
             panel.barToggleBtn.onclick = () => togglePanelBar(panel);
+
+            // The popped-out (primary) panel keeps the name it had in the main
+            // window (carried in the pop-out URL); extra panels the follower
+            // split off get positional defaults.
+            panel.name = (i === 0 && FOLLOWER && FOLLOWER.name) ? FOLLOWER.name : `P${i + 1}`;
+            if (panel.nameInput) panel.nameInput.value = panel.name;
         }
 
         active = true;
