@@ -9,7 +9,8 @@ A plugin for [Slopsmith](https://github.com/got-feedback/feedBack) that shows 2�
 - **Per-panel visualization picker** — each panel can independently run any installed `slopsmithViz` plugin (e.g. the 3D highway) alongside the default 2D highway
 - **Per-panel invert toggle** — flip individual panels between player and audience perspective independently
 - **Per-panel note detection** — each panel can independently detect notes from a specific audio input channel; pairs with the [Note Detect](https://github.com/got-feedback/feedBack-plugin-notedetect) plugin for multi-guitar setups
-- **Pop a panel into its own window** — click **⇱ Pop** on any panel to open it in a new browser window; drag it to a second monitor and resize it freely. The popup is muted and paused (it doesn't even decode the audio) and slaved to the main window's audio time, so there's still only one sound source. Click **⇲ Dock** to send the panel back to its splitscreen slot; just closing the popup window instead removes that panel.
+- **Name your panels** — each panel has an editable name label pinned to its **top-right corner**. The name persists across sessions, is **carried when you pop the panel out**, and is exposed to other plugins (e.g. [Camera Director](https://github.com/nimuart/cameradirector_feedback) targets each panel's 3D-highway camera by name) via the panel API below.
+- **Pop a panel into its own window** — click **⇱ Pop** at a panel's **top-right, next to its name**, to open it in a new browser window; drag it to a second monitor and resize it freely. The popup is muted and paused (it doesn't even decode the audio) and slaved to the main window's audio time, so there's still only one sound source. Click **⇲ Dock** (same spot) to send the panel back to its splitscreen slot; just closing the popup window instead removes that panel.
 - **Split a popped window internally** — every popup gets its own bottom toolbar with a layout picker (Single / Top-Bottom / Left-Right / Quad). A popped window can mirror the same layouts as the main splitter, so you can run e.g. a quad on a second monitor with all four arrangements while the main window stays single-panel.
 - **Hide/show bottom controls bar** — click **▾ Bar** (next to Close) to collapse the global player controls and reclaim the vertical space; a floating **▴ Controls** pill restores them
 - **Hide/show per-panel mini bar** — each panel has a **▾ Bar** button pinned to its bottom-right corner to collapse that panel's controls independently; click **▴ Bar** to restore
@@ -37,6 +38,10 @@ docker compose restart
 
 Split screen works with any song that has more than one arrangement.
 
+### Naming panels
+
+Each panel shows an editable name (default `P1`, `P2`, …) at its **top-right corner**. Click it, type a name, and press Enter (or click away) to commit. Names persist across sessions and are carried into a popped-out window. Beyond being a label, the name is the **handle other plugins use to target a specific panel** — e.g. Camera Director lists panels by name so you can give each its own 3D-highway camera and steer popped-out panels from the main window.
+
 ### Hiding controls for more screen space
 
 - **Bottom controls bar** — when splitscreen is active, a **▾ Bar** button appears next to the Close button. Click it to hide the player controls bar; panels expand to fill the freed space. A floating **▴ Controls** pill appears at the bottom-right of the player to bring the bar back.
@@ -46,7 +51,7 @@ Both states are saved to `localStorage` and restored automatically the next time
 
 ### Popping a panel onto a second monitor
 
-Each panel's mini bar has a **⇱ Pop** button. Clicking it opens that panel in its own browser window, which you can then drag to a second monitor and resize independently — handy for multi-monitor practice setups where you want the highway, lyrics, or jumping tab on a separate screen from the main player.
+Each panel has a **⇱ Pop** button at its **top-right, next to the panel name** (it stays reachable even when the panel's bottom mini-bar is hidden). Clicking it opens that panel in its own browser window, which you can then drag to a second monitor and resize independently — handy for multi-monitor practice setups where you want the highway, lyrics, or jumping tab on a separate screen from the main player. The panel's **name** is carried into the popped window, so tools that target panels by name (e.g. Camera Director) keep working across the pop-out.
 
 While popped:
 
@@ -228,6 +233,32 @@ if (typeof window.createMyVisualization === 'function') {
 
 - **Lyrics pane** — `createLyricsPane()` in [screen.js](screen.js). DOM-based renderer, single WebSocket, RAF loop for karaoke highlighting.
 - **Jumping Tab pane** — `window.createJumpingTabPane()` in the [Jumping Tab plugin](https://github.com/renanboni/slopsmith-plugin-jumpingtab). Canvas renderer with context-swapping to share draw functions across multiple pane instances.
+
+### Per-panel identity & names (for panel-targeting plugins)
+
+Plugins that need to act on individual panels — apply a per-panel setting, mount panel-scoped chrome, or (like Camera Director) drive a per-panel camera — read the panel registry off `window.feedBackSplitscreen` (alias `window.slopsmithSplitscreen`; prefer `window.feedBackSplitscreen || window.slopsmithSplitscreen`):
+
+```js
+const ss = window.feedBackSplitscreen || window.slopsmithSplitscreen;
+if (ss && ss.isActive()) {
+    for (const p of ss.getPanels()) {
+        // p = { index, name, canvas, focused, poppedOut }
+        console.log(p.index, p.name, p.focused);
+    }
+}
+```
+
+| Member | Returns / effect |
+|--------|------------------|
+| `isActive()` | `true` while split (or in a follower window that has built its panels) |
+| `getPanels()` | `[{ index, name, canvas, focused, poppedOut }]` for the current window — including a **follower window's own panels** once it has split |
+| `panelIndexFor(canvas)` | the panel index a highway `canvas` belongs to (or `null`) |
+| `isCanvasFocused(canvas)` | whether that canvas's panel is the focused one |
+| `panelName(i)` / `setPanelName(i, name)` | read / set a panel's name |
+| `onFocusChange(fn)` / `offFocusChange(fn)` | subscribe to focus changes |
+| `panelChromeFor(canvas)` / `settingsAnchorFor(canvas)` | DOM anchors for per-panel overlays / buttons |
+
+Panel add/remove/rename (and a follower re-splitting) fires **`splitscreen:panels-changed`** on the `window.feedBack` event bus — re-read `getPanels()` when you receive it. Names are per-window; a popped-out panel carries its name into its follower window, and that window's own `getPanels()` exposes any panels it splits into (so a panel-targeting plugin can address them too). The [Camera Director plugin](https://github.com/nimuart/cameradirector_feedback) is a reference consumer — it lists every window's panels by name and can steer popped-out panels from the main window.
 
 ### Testing Checklist
 

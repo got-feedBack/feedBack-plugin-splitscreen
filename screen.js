@@ -945,26 +945,32 @@ try {
             // — e.g. a stale full-screen viz overlay — can bleed through the bar.
             'background:#08080e;z-index:7;';
 
-        // Panel name — an editable label at the panel's TOP-RIGHT (not in the
-        // bottom bar: the main player's auto-hiding transport + left icon rail
-        // overlap the panel's bottom, blocking the leftmost panels' bar). Doubles
-        // as the user-facing handle other plugins (e.g. Camera Director) show to
-        // target this panel. Persists in panel prefs; changes emit
-        // `splitscreen:panels-changed` on the window.feedBack bus.
+        // Panel name + Pop/Dock — a cluster pinned to the panel's TOP-RIGHT (not
+        // in the bottom bar: the main player's auto-hiding transport + left icon
+        // rail overlap the panel's bottom, blocking the leftmost panels' bar, and
+        // Pop stays reachable even when the bottom mini-bar is hidden). The name
+        // doubles as the user-facing handle other plugins (e.g. Camera Director)
+        // show to target this panel. Persists in panel prefs; changes emit
+        // `splitscreen:panels-changed` on the window.feedBack bus. The Pop/Dock
+        // button is created further down and inserted to the LEFT of the name.
+        const nameWrap = document.createElement('div');
+        nameWrap.style.cssText =
+            'position:absolute;top:6px;right:6px;z-index:8;' +
+            'display:flex;align-items:center;gap:6px;';
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.value = `P${index + 1}`;
         nameInput.spellcheck = false;
         nameInput.title = 'Rename this panel';
         nameInput.style.cssText =
-            'position:absolute;top:6px;right:6px;z-index:8;width:96px;' +
-            'font-size:11px;color:#cbd5e1;font-weight:bold;text-align:right;' +
+            'width:96px;font-size:11px;color:#cbd5e1;font-weight:bold;text-align:right;' +
             'background:rgba(8,8,16,0.5);border:1px solid transparent;border-radius:4px;' +
             'padding:2px 6px;outline:none;';
         nameInput.addEventListener('focus', () => { nameInput.style.borderColor = '#4080e0'; nameInput.style.background = 'rgba(8,8,16,0.95)'; nameInput.select(); });
         nameInput.addEventListener('blur', () => { nameInput.style.borderColor = 'transparent'; nameInput.style.background = 'rgba(8,8,16,0.5)'; _commitPanelName(panelDiv, nameInput.value); });
         nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') nameInput.blur(); e.stopPropagation(); });
-        panelDiv.appendChild(nameInput);
+        nameWrap.appendChild(nameInput);
+        panelDiv.appendChild(nameWrap);
 
         // Arrangement selector
         const select = document.createElement('select');
@@ -1080,16 +1086,18 @@ try {
         masteryLabel.textContent = '—';
         bar.appendChild(masteryLabel);
 
-        // Pop Out / Dock — visibility flips by mode (FOLLOWER => Dock; main => Pop Out).
-        // The actual click handlers are wired in initPanel() so they have access
-        // to the panel object via closure. We append at the end of the bar
-        // (no `margin-left:auto` because barToggleBtn lives absolute-positioned
-        // at bottom:0;right:0 and the auto-margin would collide with it).
+        // Pop Out / Dock — sits at the panel's TOP-RIGHT, just left of the name
+        // (label flips by mode: FOLLOWER => Dock; main => Pop Out). Living up here
+        // (rather than in the bottom mini-bar) keeps it reachable when the bar is
+        // hidden and clear of the main player's overlapping transport. The click
+        // handler is wired in initPanel() so it has the panel object via closure.
         const popOutBtn = document.createElement('button');
         popOutBtn.style.cssText =
-            'padding:2px 6px;border-radius:4px;font-size:10px;' +
-            'border:1px solid #333;cursor:pointer;background:#1a1a2e;color:#9ca3af;' +
-            'white-space:nowrap;';
+            'padding:2px 7px;border-radius:4px;font-size:11px;font-weight:bold;' +
+            'border:1px solid transparent;cursor:pointer;background:rgba(8,8,16,0.5);color:#cbd5e1;' +
+            'white-space:nowrap;outline:none;';
+        popOutBtn.addEventListener('mouseenter', () => { popOutBtn.style.background = 'rgba(8,8,16,0.95)'; popOutBtn.style.borderColor = '#4080e0'; });
+        popOutBtn.addEventListener('mouseleave', () => { popOutBtn.style.background = 'rgba(8,8,16,0.5)'; popOutBtn.style.borderColor = 'transparent'; });
         if (FOLLOWER) {
             popOutBtn.textContent = '⇲ Dock';
             popOutBtn.title = 'Return this panel to the main window';
@@ -1097,7 +1105,7 @@ try {
             popOutBtn.textContent = '⇱ Pop';
             popOutBtn.title = 'Open this panel in a new window';
         }
-        bar.appendChild(popOutBtn);
+        nameWrap.insertBefore(popOutBtn, nameInput);
 
         panelDiv.appendChild(bar);
 
@@ -3817,6 +3825,12 @@ try {
 
         active = true;
         for (const p of panels) p.hw.resize();
+
+        // Announce the follower's panel set so per-panel plugins (e.g. Camera
+        // Director) pick up this window's panels — and any re-split of it —
+        // promptly rather than on their next poll. getPanels() reflects `panels`
+        // now that `active` is true, so a split follower exposes each sub-panel.
+        _emitPanelsChanged();
 
         // Subscribe to the broadcast channel for time / playstate / song-change
         // / main-closed. Re-assigning `onmessage` on each rebuild replaces the
