@@ -4069,6 +4069,22 @@ try {
     let _followerAudio = null;
 
     function bootFollowerMode() {
+        // A follower window (popped-out or a LAN/remote viewer) never owns
+        // scoring/detection — it slaves to the host's playhead and has no
+        // reason to open a mic. Without this, note_detect's default
+        // singleton still auto-arms on this page whenever a song is
+        // playing, finds no real input matching the performance, and spams
+        // the loud "Detect is ON but not hearing your instrument" stall
+        // banner on what's supposed to be a watch-only screen (splitscreen#57).
+        // Mirrors the suppression startSplitScreen() applies for local
+        // panels, applied here unconditionally and never restored — a
+        // follower window is watch-only for its entire lifetime.
+        (function () {
+            const cnd = (typeof window !== 'undefined') ? window.createNoteDetector : null;
+            if (cnd && typeof cnd.setDefaultSuppressed === 'function') cnd.setDefaultSuppressed(true);
+            else if (typeof window !== 'undefined') window.__ndSuppressDefault = true;
+        })();
+
         // Hide non-panel chrome with a single CSS rule so we don't have to
         // chase every element id slopsmith renders. The follower wrap covers
         // the viewport at a high z-index; #player (and our wrap) stay visible.
