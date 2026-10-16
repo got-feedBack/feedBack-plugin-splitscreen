@@ -1,6 +1,6 @@
-# Slopsmith Plugin: Split Screen
+# feedBack Plugin: Split Screen
 
-A plugin for [Slopsmith](https://github.com/got-feedback/feedBack) that shows 2–4 highway panels side-by-side during playback, each rendering a different arrangement of the same song. Practice lead and rhythm at once, watch bass against lead, or run a quad view of every arrangement a song has.
+A plugin for [feedBack](https://github.com/got-feedBack/feedBack) that shows 2–4 highway panels side-by-side during playback, each rendering a different arrangement of the same song. Practice lead and rhythm at once, watch bass against lead, or run a quad view of every arrangement a song has.
 
 ## Features
 
@@ -22,12 +22,12 @@ A plugin for [Slopsmith](https://github.com/got-feedback/feedBack) that shows 2�
 ## Installation
 
 ```bash
-cd /path/to/slopsmith/plugins
-git clone https://github.com/topkoa/slopsmith-plugin-splitscreen.git splitscreen
+cd /path/to/feedBack/plugins
+git clone https://github.com/got-feedBack/feedBack-plugin-splitscreen.git splitscreen
 docker compose restart
 ```
 
-**Compatibility** — splitscreen runs on any Slopsmith core. On cores with the `highway:visibility` plugin API (~0.2.7.1+), a visualization plugin that mounts a sibling overlay — e.g. the 3D Highway's WebGL overlay — hides itself cleanly while splitscreen is active. On older cores that overlay may bleed through the panels; update the core (and the 3D Highway plugin) to fix it.
+**Compatibility** — splitscreen runs on any feedBack core. On cores with the `highway:visibility` plugin API (~0.2.7.1+), a visualization plugin that mounts a sibling overlay — e.g. the 3D Highway's WebGL overlay — hides itself cleanly while splitscreen is active. On older cores that overlay may bleed through the panels; update the core (and the 3D Highway plugin) to fix it.
 
 ## Usage
 
@@ -159,11 +159,11 @@ window.slopsmithViz_my_viz = function () {
 
 Split screen automatically populates each panel's dropdown with this option and calls `panel.hw.setRenderer(factory())` when selected. **No changes to split screen's code are needed.** Each panel gets an independent renderer instance; the highway provides note data, timing, and the RAF loop.
 
-See the [CLAUDE.md plugin guide](https://github.com/got-feedback/feedBack/blob/main/CLAUDE.md) for the full `setRenderer` lifecycle and bundle shape. The [3D Highway plugin](https://github.com/got-feedback/feedBack-plugin-3dhighway) is a reference implementation.
+See the [CLAUDE.md plugin guide](https://github.com/got-feedback/feedBack/blob/main/CLAUDE.md) for the full `setRenderer` lifecycle and bundle shape. The [3D Highway](https://github.com/got-feedBack/feedBack/tree/main/plugins/highway_3d), which ships with core, is a reference implementation.
 
 ### Path 2: Pane plugins (own canvas + own WebSocket)
 
-If your plugin needs a fundamentally different rendering approach — its own canvas, its own WebSocket connection, DOM elements that aren't a highway at all — use the pane factory contract. Lyrics and Jumping Tab use this path.
+If your plugin needs a fundamentally different rendering approach — its own canvas, its own WebSocket connection, DOM elements that aren't a highway at all — use the pane factory contract. The built-in Lyrics pane uses this path.
 
 Your factory must accept `{ container }` and return `{ connect(), destroy(), resize() }`:
 
@@ -248,7 +248,7 @@ if (typeof window.createMyVisualization === 'function') {
 #### Reference implementations
 
 - **Lyrics pane** — `createLyricsPane()` in [screen.js](screen.js). DOM-based renderer, single WebSocket, RAF loop for karaoke highlighting.
-- **Jumping Tab pane** — `window.createJumpingTabPane()` in the [Jumping Tab plugin](https://github.com/renanboni/slopsmith-plugin-jumpingtab). Canvas renderer with context-swapping to share draw functions across multiple pane instances.
+- **Jumping Tab pane** — `window.createJumpingTabPane()`. Split screen still detects this factory, but the current [Jumping Tab plugin](https://github.com/got-feedBack/feedBack-plugin-jumpingtab) no longer exposes it. It now registers as a visualization plugin (`window.feedBackViz_jumpingtab`), so split screen picks it up through Path 1.
 
 ### Per-panel identity & names (for panel-targeting plugins)
 
@@ -305,12 +305,12 @@ Messages arrive in the order listed above. Do not start rendering until you rece
 
 ## Requirements
 
-- Slopsmith with the highway factory (`createHighway()`) and `setRenderer` support exposed on `window` — available in all recent builds (slopsmith#36)
+- feedBack with the highway factory (`createHighway()`) and `setRenderer` support exposed on `window` — available in all recent builds (slopsmith#36)
 - A song with ≥2 arrangements to see any benefit; 1-arrangement songs simply render the same view in every panel
 
 ## Other Plugins
 
-- [Stems](https://github.com/topkoa/slopsmith-plugin-stems) — live multi-stem mixer for `.sloppak` songs
+- [Stems](https://github.com/got-feedBack/feedBack-plugin-stems) — live multi-stem mixer for `.sloppak` songs
 
 ## License
 
